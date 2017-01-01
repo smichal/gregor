@@ -74,7 +74,8 @@
    :key       (.key record)
    :partition (.partition record)
    :topic     (.topic record)
-   :offset    (.offset record)})
+   :offset    (.offset record)
+   :timestamp (.timestamp record)})
 
 (defprotocol Closeable 
   "Provides two ways to close things: a default one with 'close [thing]'
@@ -295,6 +296,22 @@
   [^Consumer consumer]
   (.wakeup consumer))
 
+(defn offsets-for-time
+  [^Consumer consumer timestamps-to-search]
+  (->> (.offsetsForTimes consumer timestamps-to-search))
+       (map (fn [[k v]]
+              [k {:offset (.offset v)
+                  :timestamp (.timestamp v)}]))
+       (into {}))
+
+(defn beginning-offsets
+  [^Consumer consumer partitions]
+  (.beginningOffsets consumer partitions))
+
+(defn end-offsets
+  [^Consumer consumer partitions]
+  (.endOffsets consumer partitions))
+
 (defn consumer
   "Return a KafkaConsumer.
 
@@ -345,7 +362,9 @@
   ([^String topic key value]
    (ProducerRecord. topic key value))
   ([^String topic ^Integer partition key value]
-   (ProducerRecord. topic partition key value)))
+   (ProducerRecord. topic partition key value))
+  ([^String topic ^Integer partition ^Long timestamp key value]
+   (ProducerRecord. topic partition timestamp key value)))
 
 (defn- send-record
   [^Producer producer ^ProducerRecord record & [callback]]
@@ -369,7 +388,9 @@
   ([^Producer producer ^String topic key value]
    (send-record producer (->producer-record topic key value)))
   ([^Producer producer ^String topic ^Integer partition key value]
-   (send-record producer (->producer-record topic partition key value))))
+   (send-record producer (->producer-record topic partition key value)))
+  ([^Producer producer ^String topic ^Integer partition ^Long timestamp key value]
+   (send-record producer (->producer-record topic partition timestamp key value))))
 
 (defn send-then
   "Asynchronously send a record to a topic, providing at least a topic and value, and
@@ -385,8 +406,8 @@
    (send-record producer (->producer-record topic value) callback))
   ([^Producer producer ^String topic key value callback]
    (send-record producer (->producer-record topic key value) callback))
-  ([^Producer producer ^String topic ^Integer partition key value callback]
-   (send-record producer (->producer-record topic partition key value) callback)))
+  ([^Producer producer ^String topic ^Integer partition ^Long timestamp key value callback]
+   (send-record producer (->producer-record topic partition timestamp key value) callback)))
 
 (defn producer
   "Return a KafkaProducer.
